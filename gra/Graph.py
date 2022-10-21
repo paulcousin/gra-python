@@ -1,4 +1,5 @@
-# external packages
+# packages
+import gra
 import math
 import numpy as np
 import igraph as ig
@@ -25,7 +26,7 @@ class Graph:
         return self.adjacency_matrix.dense_shape.numpy()[1]
     
     def clone(self):
-        return Graph(self.adjacency_matrix, self.state_vector)
+        return gra.Graph(self.adjacency_matrix, self.state_vector)
 
     def isomorphic(self, g2):
         g1 = self
@@ -56,7 +57,7 @@ class Graph:
 
     #--------------- EVOLUTION METHOD ---------------#
     def evolve(self, rule):
-        new = rule.evolve(self)
+        new = rule(self)
         self.adjacency_matrix = new.adjacency_matrix
         self.state_vector = new.state_vector
 

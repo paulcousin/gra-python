@@ -1,4 +1,5 @@
 # external packages
+import gra
 import math
 import numpy as np
 import matplotlib.pyplot as plt
@@ -31,7 +32,7 @@ class Rule:
         return rule[::-1]
 
     #--------------- EVOLUTION METHODS ---------------#
-    def evolve(self, graph):
+    def __call__(self, graph):
         adjacency_matrix = graph.adjacency_matrix
         state_vector = graph.state_vector
 
@@ -92,7 +93,9 @@ class Rule:
         # updates the state vector
         state_vector = tf.convert_to_tensor(np.array([new_state_vector]).T, dtype=tf.int32)
 
-        return Graph(adjacency_matrix, state_vector)
+        # return gra.Graph(adjacency_matrix, state_vector)
+        graph.adjacency_matrix = adjacency_matrix
+        graph.state_vector = state_vector
 
     def jump(self, graph, n):
         for i in range(n):
@@ -163,4 +166,4 @@ class Rule:
         plt.axis('equal') # scale x and y equaly
         plt.axis('off') # don't display axes
         fig.set_size_inches(scale*self.degree, scale)
-        plt.show()
+        return plt.show()
