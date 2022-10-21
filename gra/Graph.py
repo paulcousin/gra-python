@@ -20,15 +20,10 @@ class Graph:
             self.state_vector = state_vector
         else: # if state_vector is not a tensor
             self.state_vector = tf.constant(state_vector, dtype=tf.int32)
+            
 
     #--------------- UTILITIES ---------------#
-    def order(self):
-        return self.adjacency_matrix.dense_shape.numpy()[1]
-    
-    def clone(self):
-        return gra.Graph(self.adjacency_matrix, self.state_vector)
-
-    def isomorphic(self, g2):
+    def __eq__(self, g2):
         g1 = self
         ig1 = self.igraph()
         ig2 = g2.igraph()
@@ -44,6 +39,12 @@ class Graph:
                 return True
         
         return False
+    
+    def order(self):
+        return self.adjacency_matrix.dense_shape.numpy()[1]
+    
+    def clone(self):
+        return gra.Graph(self.adjacency_matrix, self.state_vector)
 
     #--------------- GRAPH PLOT ---------------#
     def plot(self):
@@ -56,10 +57,12 @@ class Graph:
         return ig.plot(g, bbox=(20*math.sqrt(self.order()), 20*math.sqrt(self.order())), margin=10, **visual_style)
 
     #--------------- EVOLUTION METHOD ---------------#
-    def evolve(self, rule):
-        new = rule(self)
-        self.adjacency_matrix = new.adjacency_matrix
-        self.state_vector = new.state_vector
+    def evolve(self, rule): 
+        rule(self)
+    
+    def jump(self, rule, n):
+        for i in range(n):
+            rule(self)
 
     #--------------- EXPORTS ---------------#
     def mathematica(self):

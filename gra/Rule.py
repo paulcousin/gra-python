@@ -33,15 +33,13 @@ class Rule:
 
     #--------------- EVOLUTION METHODS ---------------#
     def __call__(self, graph):
-        adjacency_matrix = graph.adjacency_matrix
-        state_vector = graph.state_vector
-
+        
         # checks the compatibility of the graph
-        if not tf.math.reduce_all(tf.equal(tf.sparse.sparse_dense_matmul(adjacency_matrix, tf.transpose([tf.ones(graph.order(), dtype=tf.int32)])),self.degree*tf.transpose([tf.ones(graph.order(), dtype=tf.int32)]))):
+        if not tf.math.reduce_all(tf.equal(tf.sparse.sparse_dense_matmul(graph.adjacency_matrix, tf.transpose([tf.ones(graph.order(), dtype=tf.int32)])),self.degree*tf.transpose([tf.ones(graph.order(), dtype=tf.int32)]))):
             raise TypeError('The provided graph is not a ' + str(self.degree) + '-regular graph, the rule cannot be applied.')
 
         # computes the configuration vector
-        configurations = tf.sparse.sparse_dense_matmul(adjacency_matrix, state_vector).numpy().transpose().squeeze() + 4*state_vector.numpy().transpose().squeeze()
+        configurations = tf.sparse.sparse_dense_matmul(graph.adjacency_matrix, graph.state_vector).numpy().transpose().squeeze() + 4*graph.state_vector.numpy().transpose().squeeze()
 
         # importing the list of binary digits
         rule = self.binary_digits()[::-1]
@@ -64,43 +62,38 @@ class Rule:
                 division_vector.insert(i, 0)
 
             # updates the adjacency matrix
-            line_indices = tf.sparse.slice(adjacency_matrix, [i,0], [1,dim]).indices.numpy()[:,1]
+            line_indices = tf.sparse.slice(graph.adjacency_matrix, [i,0], [1,dim]).indices.numpy()[:,1]
             new_lines = tf.SparseTensor(indices=[[0,line_indices[0]]], values=[1], dense_shape=[self.degree,dim])
             for k in range(1, self.degree):
                 new_lines = tf.sparse.add(new_lines, tf.SparseTensor(indices=[[k,line_indices[k]]], values=[1], dense_shape=[self.degree,dim]))
-            adjacency_matrix = tf.sparse.concat(0,
+            graph.adjacency_matrix = tf.sparse.concat(0,
                 [
-                    tf.sparse.slice(adjacency_matrix, [0,0], [i,dim]),
+                    tf.sparse.slice(graph.adjacency_matrix, [0,0], [i,dim]),
                     new_lines,
-                    tf.sparse.slice(adjacency_matrix, [i+1,0], [dim-i-1,dim])
+                    tf.sparse.slice(graph.adjacency_matrix, [i+1,0], [dim-i-1,dim])
                 ]
             )
-            column_indices = tf.sparse.slice(adjacency_matrix, [0,i], [dim+(self.degree-1),1]).indices.numpy()[:,0]
+            column_indices = tf.sparse.slice(graph.adjacency_matrix, [0,i], [dim+(self.degree-1),1]).indices.numpy()[:,0]
             new_columns = tf.SparseTensor(indices=[[column_indices[0],0]], values=[1], dense_shape=[dim+(self.degree-1),self.degree])
             for k in range(1, self.degree):
                 new_columns = tf.sparse.add(new_columns, tf.SparseTensor(indices=[[column_indices[k],k]], values=[1], dense_shape=[dim+(self.degree-1),self.degree]))
-            adjacency_matrix = tf.sparse.concat(1,
+            graph.adjacency_matrix = tf.sparse.concat(1,
                 [
-                    tf.sparse.slice(adjacency_matrix, [0,0], [dim+(self.degree-1),i]),
+                    tf.sparse.slice(graph.adjacency_matrix, [0,0], [dim+(self.degree-1),i]),
                     new_columns,
-                    tf.sparse.slice(adjacency_matrix, [0,i+1], [dim+(self.degree-1),dim-i-1])
+                    tf.sparse.slice(graph.adjacency_matrix, [0,i+1], [dim+(self.degree-1),dim-i-1])
                 ]
             )
             
             # adding the junction submatrix
-            adjacency_matrix = tf.sparse.add(adjacency_matrix, tf.SparseTensor(indices=np.array([[m,n] for m,n in np.ndindex((self.degree,self.degree)) if m!=n])+i, values=[1 for n in range(self.degree*(self.degree-1))], dense_shape=[dim+(self.degree-1), dim+(self.degree-1)]))
+            graph.adjacency_matrix = tf.sparse.add(graph.adjacency_matrix, tf.SparseTensor(indices=np.array([[m,n] for m,n in np.ndindex((self.degree,self.degree)) if m!=n])+i, values=[1 for n in range(self.degree*(self.degree-1))], dense_shape=[dim+(self.degree-1), dim+(self.degree-1)]))
 
         # updates the state vector
-        state_vector = tf.convert_to_tensor(np.array([new_state_vector]).T, dtype=tf.int32)
-
-        # return gra.Graph(adjacency_matrix, state_vector)
-        graph.adjacency_matrix = adjacency_matrix
-        graph.state_vector = state_vector
+        graph.state_vector = tf.convert_to_tensor(np.array([new_state_vector]).T, dtype=tf.int32)
 
     def jump(self, graph, n):
         for i in range(n):
-            graph = self.evolve(graph)
-        return graph
+            evolve(self)
 
     #--------------- RULE PLOT ---------------#
     def plot(self):
