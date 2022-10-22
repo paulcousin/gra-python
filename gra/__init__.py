@@ -1,3 +1,3 @@
-from .Graph import *
-from .Rule import *
+from .graphs import * 
+from .rules import *
 
