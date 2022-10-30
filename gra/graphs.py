@@ -41,18 +41,15 @@ class Graph:
     
     #--------------- UTILITIES ---------------#
     def __eq__(self, g2):
-        g1 = self
         ig1 = self.to_igraph()
         ig2 = g2.to_igraph()
-
         isomorphisms = ig1.get_isomorphisms_vf2(ig2)
-        state_vector = g1.state_vector.numpy()
-        test = g2.state_vector.numpy()
+        test = np.zeros(self.order())
 
         for i in range(len(isomorphisms)):
             for j in range(len(isomorphisms[i])):
-                test[j] = g2.state_vector.numpy()[isomorphisms[i][j]]
-            if (test == state_vector).all(): 
+                test[j] = ig1.vs["label"][isomorphisms[i][j]]
+            if (test == ig2.vs["label"]).all(): 
                 return True
         
         return False
@@ -134,3 +131,59 @@ def from_igraph(igraph):
     graph.state_vector = tf.constant(state_vector, dtype=graph.dtype)
 
     return graph
+
+def minimal_regular_graphs(degree):
+    order = 2*(degree+1)+2
+    half = degree+2
+    size = degree**2
+    state_vector = np.array([[1] if i<order/2 else [0] for i in range(order)])
+    ones = np.ones([order,1], dtype=int)
+    results=[]
+
+    # initiates progress
+    update = 0
+    step = max([int(2**size/100),1])
+    print("0% -> 0 graphs found", end="\r")
+
+    for i in range(2**size):
+        # display progress
+        if i//step != update : 
+            update = i//step
+            print (str(int((i/(2**size))*100)) + "% -> " + str(len(results)) + " graphs found", end="\r")
+
+        A = [int(x) for x in np.binary_repr(i)]
+        A.reverse()
+        for j in range(len(A), size): A.append(0)
+        A = np.array(A)
+        A.shape = (half-2, half-2)
+
+        initial_matrix = np.zeros((order, order), dtype=int)
+        initial_matrix[0,2:half]=np.ones(half-2)
+        initial_matrix[1,half:order-1]=np.ones(half-1)
+        initial_matrix[2:half,2:half]=np.triu(A.T, k=1)
+        initial_matrix[2:half,half:order-2]=np.flip(np.triu(A, k=0).T, 0)
+        initial_matrix = initial_matrix + initial_matrix.T
+        initial_matrix =  initial_matrix + np.rot90(np.triu(np.rot90(initial_matrix,-1), k=1),-1)   
+
+        for p in range(half-1):
+            matrix = copy.deepcopy(initial_matrix)
+            matrix[1,half+p]=0
+            matrix[half+p,1]=0
+            matrix[-2,-half-p-1]=0
+            matrix[-half-p-1,-2]=0
+
+            if all(np.dot(matrix, ones)==degree*ones):
+                C = (degree+1)*state_vector + np.dot(matrix,state_vector)
+                test = True
+                for k in range(2*(degree+1)):
+                    if k not in C:
+                        test = False
+
+                if test:
+                    graph = gra.Graph(matrix.tolist(),state_vector.tolist())
+                    if graph not in results:
+                        results.append(graph)
+
+    print("100% -> " + str(len(results)) + " graphs found", end="\r")
+
+    return results
