@@ -11,6 +11,8 @@ import tensorflow as tf
 class Rule:
 
     #--------------- INITIALIZATION METHOD ---------------#
+
+    # initialize object after checking input validity
     def __init__(self, degree, number):
         if 0 <= int(number) < 4**(2*(int(degree)+1)) and int(degree) > 0:
             self.degree = int(degree)
@@ -19,44 +21,52 @@ class Rule:
             raise TypeError('Invalid input.')
     
     #--------------- UTILITIES ---------------#
+
+    # return list of binary digits of the rule number
     def binary_digits(self):
-        # creates a list with the 4*(d+1) first binary digits of the rule number
+        # creates a list with the 4*(d+1) first digits
         rule = [int(x) for x in np.binary_repr(self.number)]
         rule.reverse()
+        # completes the list with zeros
         for i in range(len(rule), 4*(self.degree+1)): rule.append(0)
         return rule[::-1]
 
     #--------------- EVOLUTION METHODS ---------------#
-    def __call__(self, graph):
+
+    def __call__(self, graph): # make the object behave as a function
+
+    ### for detailed explanation of this part of the algorithm, checkout :
+    ### https://paulcousin.github.io/graph-rewriting-automata/
         
-        # checks the compatibility of the graph
+        # check the compatibility of the graph
         if not tf.math.reduce_all(tf.equal(tf.sparse.sparse_dense_matmul(graph.adjacency_matrix, tf.transpose([tf.ones(graph.order(), dtype=tf.int32)])),self.degree*tf.transpose([tf.ones(graph.order(), dtype=tf.int32)]))):
             raise TypeError('The provided graph is not a ' + str(self.degree) + '-regular graph, the rule cannot be applied.')
 
-        # computes the configuration vector
+        # compute the configuration vector
         configurations = tf.sparse.sparse_dense_matmul(graph.adjacency_matrix, graph.state_vector).numpy().transpose().squeeze() + 4*graph.state_vector.numpy().transpose().squeeze()
 
-        # importing the list of binary digits
+        # import the list of binary digits
         rule = self.binary_digits()[::-1]
 
-        # computes an updated state vector and a division vector
+        # compute an updated state vector and a division vector
         new_state_vector = [rule[c] for c in configurations]
         division_vector =  [rule[c+2*(self.degree+1)] for c in configurations]
 
+        # iterate through the vertices to divide
         while 1 in division_vector:
             i = division_vector.index(1)
             dim = len(division_vector)
 
-            # updates the state vector
+            # update the state vector
             for j in range(self.degree-1):
                 new_state_vector.insert(i, new_state_vector[i])
 
-            # updates the division vector
+            # update the division vector
             division_vector[i]=0
             for j in range(self.degree-1):
                 division_vector.insert(i, 0)
 
-            # updates the adjacency matrix
+            # update the adjacency matrix
             line_indices = tf.sparse.slice(graph.adjacency_matrix, [i,0], [1,dim]).indices.numpy()[:,1]
             new_lines = tf.SparseTensor(indices=[[0,line_indices[0]]], values=[1], dense_shape=[self.degree,dim])
             for k in range(1, self.degree):
@@ -80,29 +90,33 @@ class Rule:
                 ]
             )
             
-            # adding the junction submatrix
+            # add the junction submatrix
             graph.adjacency_matrix = tf.sparse.add(graph.adjacency_matrix, tf.SparseTensor(indices=np.array([[m,n] for m,n in np.ndindex((self.degree,self.degree)) if m!=n])+i, values=[1 for n in range(self.degree*(self.degree-1))], dense_shape=[dim+(self.degree-1), dim+(self.degree-1)]))
 
-        # updates the state vector
+        # update the state vector
         graph.state_vector = tf.convert_to_tensor(np.array([new_state_vector]).T, dtype=tf.int32)
 
-        # outputs the new graph
+        # return the new graph
         return graph
 
+    # apply the rule n times
     def jump(self, graph, n):
         for i in range(n):
             self(graph)
         return graph
 
     #--------------- RULE PLOT ---------------#
+
+    # plot the rule using matplotlib
     def plot(self):
-        # importing the list of binary digits
+
+        # import the list of binary digits
         rule = self.binary_digits()[::-1]
 
-        # figure initialization
+        # initialize figure
         fig, ax = plt.subplots()
         
-        # layout
+        # define layout
         sx, sy = 40, 20 # spacing
         vr = 1 # vertex radius
         el = 6 # edge length
@@ -110,18 +124,18 @@ class Rule:
         scale = 10 # output scale
 
         for c in range(2*self.degree+2):
-            # translation
+            # translate subplots
             tx = sx*(c-(self.degree+1)*(c//(self.degree+1)))
             ty = 18 if c<self.degree+1 else 0
 
-            # adds central vertex
+            # add central vertex
             x, y = tx, ty
             circle = plt.Circle((x,y), vr, facecolor='purple' if c<self.degree+1 else 'orange', edgecolor='black')
             ax.add_patch(circle) # configuration
-            if rule[4*self.degree+3-c]==0: # result without division
+            if rule[4*self.degree+3-c]==0: # result without vertex division
                 circle = plt.Circle((x+dst,y), vr, facecolor='purple' if rule[2*self.degree+1-c]==1 else 'orange', edgecolor='black')
                 ax.add_patch(circle)
-            else: # result with division
+            else: # result with vertex division
                 for k in range(self.degree):
                     x, y = tx+el*np.cos(-np.pi/2+(k*2*np.pi)/self.degree), ty+el*np.sin(-np.pi/2+(k*2*np.pi)/self.degree)
                     circle = plt.Circle(((tx+x)/2+dst,(ty+y)/2), vr, facecolor='purple' if rule[2*self.degree+1-c]==1 else 'orange', edgecolor='black')
@@ -131,14 +145,14 @@ class Rule:
                         line = plt.Line2D([(tx+x)/2+dst, (tx+x_)/2+dst], [(ty+y)/2, (ty+y_)/2], color='black', zorder=-1)
                         ax.add_line(line)  
 
-            # adds arrow
-            x, y = tx+el+2*vr, ty  # start
+            # add arrow
+            x, y = tx+el+2*vr, ty       # start
             dx, dy = dst-2*(el+2*vr), 0 # end
-            width = 3
+            width = 3                   # width
             arrow = mpatches.Arrow(x, y, dx, dy, width, facecolor='black')
             ax.add_patch(arrow)
 
-            # adds edges and outer vertices one-by-one
+            # add edges and outer vertices one-by-one
             for k in range(self.degree):
                 color = 'orange' if k<(c-(self.degree+1)*(c//(self.degree+1))) else 'purple'
                 x, y = tx+el*np.cos(-np.pi/2+(k*2*np.pi)/self.degree), ty+el*np.sin(-np.pi/2+(k*2*np.pi)/self.degree)
@@ -148,10 +162,10 @@ class Rule:
                 ax.add_line(line)
                 ax.add_patch(circle)
                 # result at t+1
-                if rule[4*self.degree+3-c]==0: # undivided
+                if rule[4*self.degree+3-c]==0: # if the vertex is not divided
                     line = plt.Line2D([tx+dst,x+dst], [ty, y], color='black', zorder=-1)
                     ax.add_line(line)
-                else: # divided
+                else: # if the vertex is divided
                     line = plt.Line2D([(tx+x)/2+dst,x+dst], [(ty+y)/2, y], color='black', zorder=-1)
                     ax.add_line(line)
 
