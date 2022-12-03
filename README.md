@@ -1,4 +1,4 @@
-# GRA python package for Graph-Rewriting Automata
+[GRA python package](https://pypi.org/project/gra/) for Graph-Rewriting Automata
 For detailed information on the project, please checkout [this page](https://paulcousin.github.io/graph-rewriting-automata).
 
 ### Installing the virtual environment 
